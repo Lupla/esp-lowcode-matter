@@ -43,12 +43,11 @@ int feature_update_from_system(low_code_feature_data_t *data)
     uint16_t endpoint_id = data->details.endpoint_id;
     uint32_t feature_id = data->details.feature_id;
 
-    if (endpoint_id == 1 || endpoint_id == 2) {
-        if (feature_id == LOW_CODE_FEATURE_ID_POWER) {  // Power
-            bool power_value = *(bool *)data->value.value;
-            printf("%s: Feature update: socket %d power: %d\n", TAG, endpoint_id, power_value);
-            return app_driver_set_socket_state(endpoint_id, power_value);
-        }
+    if ((endpoint_id >= 1) && (endpoint_id <= SOCKET_ENDPOINT_COUNT) &&
+        feature_id == LOW_CODE_FEATURE_ID_POWER) {
+        bool power_value = *(bool *)data->value.value;
+        printf("%s: Feature update: socket %d power: %d\n", TAG, endpoint_id, power_value);
+        return app_driver_set_socket_state(endpoint_id, power_value);
     }
 
     return 0;

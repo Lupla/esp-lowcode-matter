@@ -1,2 +1,1 @@
-# Button
-CONFIG_BUTTON_DRIVER_USE_HP_GPIO=y
+# No overrides required for the button-less 8-channel design.
