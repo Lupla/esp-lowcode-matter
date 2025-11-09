@@ -17,6 +17,8 @@
 #include <stdint.h>
 #include <low_code.h>
 
+#define SOCKET_ENDPOINT_COUNT 8
+
 /* Driver functions */
 int app_driver_init();
 int app_driver_set_socket_state(uint16_t endpoint_id, bool state);

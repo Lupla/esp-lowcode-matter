@@ -1,14 +1,12 @@
-# Socket | 2 Channel
+# Socket | 8 Channel
 
 ## Description
 
-A dual-channel smart socket featuring independent relay control, unified status indication via WS2812 RGB LED, and multi-button user interactions:
+An eight-channel smart socket featuring independent relay control and a shared WS2812 RGB indicator LED:
 
-* **Dual Relay Control**: Independently controls two power channels via GPIO-connected relays
-* **User Input**:
-  * Dedicated single-button press toggles each socket state (Button1: Endpoint1, Button2: Endpoint2)
-  * Long press on either button triggers factory reset
-* **Unified Status Indication**: Single WS2812 RGB LED displays combined socket states and system events
+* **Eight Relay Outputs**: Each channel is exposed as a dedicated Matter endpoint of type `On/Off Plug`
+* **Matter-Only Control**: Channel state changes are driven via Matter feature updates—no local buttons required
+* **Unified Status Indication**: Single WS2812 RGB LED displays aggregated socket status and system events
 * **Matter Data Model Specification**:
   * **Device Type** : `On/Off Plug`
 
@@ -18,23 +16,25 @@ A dual-channel smart socket featuring independent relay control, unified status 
 
 The following hardware components are used for this product:
 
-* **Devkit**: [M5Stack Nano C6 Dev Kit](https://shop.m5stack.com/products/m5stack-nanoc6-dev-kit?srsltid=AfmBOooXsbm_fgpDyK1yWqgPOwtjrL3WksxGlhmRKDZFmVj2omLLbWDX)
-* **Power Relays**: Two single-channel relay
+* **Controller**: [nanoESP32-C6](https://github.com/wuxx/nanoESP32-C6) (ESP32-C6 module with USB-C power and exposed GPIOs)
+* **Power Relays**: [8 Channel Relay Module, DC 5 V, opto-isolated, high/low trigger](https://amzn.eu/d/6Cs208m)
 * **Indicator**: On-board WS2812 RGB LED
-* **Buttons**: Two on-board or external push-buttons
 
 ### Pin Assignment
 
-| Peripheral      | GPIO Pin | Function                  |
-|-----------------|----------|---------------------------|
-| Relay 1 Control | GPIO2    | Primary power switching   |
-| Relay 2 Control | GPIO3    | Secondary power switching |
-| Button 1        | GPIO9    | Primary socket control    |
-| Button 2        | GPIO10   | Secondary socket control  |
-| RGB LED         | GPIO8    | Unified status indication |
+| Peripheral      | GPIO Pin | Function                         |
+|-----------------|----------|----------------------------------|
+| Relay 1 Control | GPIO0    | Channel 1 power switching        |
+| Relay 2 Control | GPIO1    | Channel 2 power switching        |
+| Relay 3 Control | GPIO2    | Channel 3 power switching        |
+| Relay 4 Control | GPIO3    | Channel 4 power switching        |
+| Relay 5 Control | GPIO4    | Channel 5 power switching        |
+| Relay 6 Control | GPIO5    | Channel 6 power switching        |
+| Relay 7 Control | GPIO6    | Channel 7 power switching        |
+| Relay 8 Control | GPIO7   | Channel 8 power switching        |
+| RGB LED         | GPIO8    | Unified status indication        |
 
-> **Note**: GPIO assignments can be customized by modifying the following macros in **app_driver.cpp**:
-> `RELAY1_GPIO_NUM`, `RELAY2_GPIO_NUM`, `BUTTON1_GPIO_NUM`, `BUTTON2_GPIO_NUM`, `INDICATOR_GPIO_NUM`
+> **Note**: GPIO assignments can be customized by editing the `relay_gpio_pins[]` array in **app_driver.cpp** and `INDICATOR_GPIO_NUM` define if needed.
 
 ## Understanding Code
 
@@ -42,19 +42,21 @@ The following hardware components are used for this product:
 
 The `app_driver_init()` function performs the following:
 
-* Initializes both relay GPIOs as outputs
-* Configures two independent buttons with debounce handling:
-  * **Button1**: Toggles Endpoint1 (Socket1) on single-click
-  * **Button2**: Toggles Endpoint2 (Socket2) on single-click
-  * Both buttons trigger factory reset on long-press
+* Initializes all relay GPIOs as outputs
 * Initializes the WS2812 RGB LED for combined status indication
+* Leaves all channels off until Matter feature updates arrive
+
+### Channel Control Flow
+
+* `app_driver_set_socket_state` validates the endpoint, switches the corresponding relay, and updates the shared indicator whenever any channel is on
+* `feature_update_from_system` (in `app_main.cpp`) forwards On/Off feature updates from any of the eight endpoints to the driver
+* The driver no longer registers button callbacks; only Matter-sourced updates can toggle relays
 
 ### Core Functions
 
 * **Power Control**:
-  * `app_driver_toggle_socket_state_button_callback` handles both endpoints using `endpoint_id` parameter
   * `app_driver_set_socket_state` manages relay states individually while providing unified LED feedback
-  * State changes are reported to the system with proper endpoint differentiation
+  * Feature updates from the system contain the endpoint ID, allowing the driver to map directly to the proper relay
 
 * **Visual Indicators**:
   * `LOW_CODE_EVENT_SETUP_MODE_START`: starts blinking effect, to indicate setup mode activation (2000ms interval)
@@ -64,26 +66,22 @@ The `app_driver_init()` function performs the following:
 ### Multi-Endpoint Implementation
 
 * Endpoint mapping:
-  * Endpoint1 (ID=1): Controlled by Button1/RELAY1_GPIO_NUM
-  * Endpoint2 (ID=2): Controlled by Button2/RELAY2_GPIO_NUM
+  * Endpoints 1–8 map linearly to the eight relay GPIOs defined in `relay_gpio_pins[]`
 * State tracking:
-  * `socket_states[]` array maintains individual relay states
-  * Button callbacks uses `endpoint_id` parameter for proper state management
+  * `socket_states[]` array maintains individual relay states with `SOCKET_ENDPOINT_COUNT = 8`
+  * Indicator power reflects the OR of all channel states
 
 ### Extending Functionality
 
-To add more relay channels to the system, implement the following changes:
+To adjust the number of relay channels:
 
 * **Matter Data Model Extension**:
-  * Add the required number of On/Off Plug Device Type endpoint to the Matter cluster configuration.
-  * Run `Upload Configuration` command to upload the updated data model on the device.
+  * Add/remove On/Off Plug device endpoints in the Matter data model (`data_model.zap`).
+  * Run `Upload Configuration` to regenerate and push the updated data model to the device.
 
-* **Configure Additional Button Input**:
-  * Initialize required GPIO button.
-  * Register a **single-click event callback** using `button_driver_register_cb` for all the buttons.
-  * Inside the callback:
-    * Toggle the state of the second relay.
-    * Report the new relay state to the system using `low_code_feature_update_to_system`.
+* **Update Relay Mapping**:
+  * Modify the `relay_gpio_pins[]` array in `app_driver.cpp` to reflect the new hardware layout.
+  * Ensure `SOCKET_ENDPOINT_COUNT` matches the total number of exposed endpoints.
 
 ## Related Documentation
 
